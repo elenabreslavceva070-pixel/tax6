@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чек-лист — начало работы</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #eef3ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 16px;
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+        }
+        .sheet {
+            max-width: 700px;
+            width: 100%;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        .sheet-header {
+            background: #F8FAFE;
+            padding: 10px 16px;
+            border-bottom: 1px solid #E2E9F2;
+        }
+        .sheet-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1f2f3e;
+        }
+        .sheet-header p {
+            font-size: 0.7rem;
+            color: #5b6f82;
+            margin-top: 2px;
+        }
+        .sheet-content {
+            padding: 14px;
+        }
+        .section {
+            background: #F9FBFE;
+            border-radius: 16px;
+            padding: 12px;
+            border-left: 3px solid #C3D7FF;
+        }
+        .section-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: #1f2f3e;
+            margin-bottom: 10px;
+        }
+        .stages-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+        .stage-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 32px;
+            border: 1px solid #E9EDF2;
+        }
+        .stage-num {
+            font-weight: 700;
+            font-size: 0.75rem;
+            background: #C3D7FF;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 30px;
+            flex-shrink: 0;
+        }
+        .stage-select {
+            flex: 1;
+        }
+        select {
+            width: 100%;
+            padding: 5px 8px;
+            border-radius: 24px;
+            border: 1px solid #CDD9ED;
+            background: white;
+            font-size: 0.7rem;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .status-icon {
+            font-size: 0.9rem;
+            min-width: 22px;
+            text-align: center;
+        }
+        .btn {
+            border: none;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.7rem;
+            cursor: pointer;
+            background: #C3D7FF;
+            color: #1f2f3e;
+        }
+        .message {
+            margin-top: 12px;
+            padding: 6px 12px;
+            border-radius: 24px;
+            font-size: 0.7rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="sheet">
+    <div class="sheet-header">
+        <h2>📋 Чек-лист — Что не упустить в начале работы</h2>
+        <p>Выберите верные действия в правильной последовательности</p>
+    </div>
+    <div class="sheet-content">
+        <div class="section">
+            <div class="section-title">🔍 Этапы консультирования</div>
+            <div id="stagesList" class="stages-list"></div>
+            <button id="checkBtn" class="btn">✓ Проверить</button>
+            <div id="message" class="message"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CORRECT_STAGES = [
+        "Согласовать условия работы",
+        "Заключить договор",
+        "Оформить доверенность при необходимости",
+        "Запросить уставные документы",
+        "Узнать систему налогообложения",
+        "Узнать, есть ли у клиента претензии или проверки от налоговой",
+        "Проанализировать учет и нормы",
+        "Подготовить варианты решения",
+        "Обсудить варианты с клиентом и выбрать лучший"
+    ];
+
+    const ALL_OPTIONS = [
+        "Согласовать условия работы", "Заключить договор", "Оформить доверенность при необходимости",
+        "Запросить уставные документы", "Узнать систему налогообложения",
+        "Узнать, есть ли у клиента претензии или проверки от налоговой",
+        "Проанализировать учет и нормы", "Подготовить варианты решения",
+        "Обсудить варианты с клиентом и выбрать лучший",
+        "Дать бесплатный совет", "Начать работать по описанию клиента",
+        "Предложить один вариант без альтернатив", "Оставить клиента без поддержки"
+    ];
+
+    // Функция для перемешивания массива (рандомный порядок)
+    function shuffleArray(arr) {
+        const copy = [...arr];
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy;
+    }
+
+    let userSelections = new Array(9).fill("");
+    let isCompleted = false;
+    let randomOptions = shuffleArray(ALL_OPTIONS);
+
+    const stagesContainer = document.getElementById('stagesList');
+    const checkBtn = document.getElementById('checkBtn');
+    const messageDiv = document.getElementById('message');
+
+    function loadData() {
+        const saved = localStorage.getItem('checklist_step1');
+        if (saved) {
+            try {
+                const data = JSON.parse(saved);
+                userSelections = data.userSelections || new Array(9).fill("");
+                isCompleted = data.isCompleted || false;
+                if (data.randomOptions) randomOptions = data.randomOptions;
+            } catch(e) {}
+        }
+        renderStages();
+    }
+
+    function saveData() {
+        localStorage.setItem('checklist_step1', JSON.stringify({
+            userSelections: userSelections,
+            isCompleted: isCompleted,
+            randomOptions: randomOptions
+        }));
+        localStorage.setItem('step1_completed', isCompleted ? 'true' : 'false');
+        localStorage.setItem('step1_selections', JSON.stringify(userSelections));
+    }
+
+    function renderStages() {
+        stagesContainer.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+            const row = document.createElement('div');
+            row.className = 'stage-row';
+            row.innerHTML = `
+                <div class="stage-num">${i+1}</div>
+                <div class="stage-select">
+                    <select data-idx="${i}" class="stage-selector" ${isCompleted ? 'disabled' : ''}>
+                        <option value="">--</option>
+                        ${randomOptions.map(opt => `<option value="${opt.replace(/"/g, '&quot;')}" ${userSelections[i] === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="status-icon" id="icon${i}"></div>
+            `;
+            stagesContainer.appendChild(row);
+        }
+
+        if (!isCompleted) {
+            document.querySelectorAll('.stage-selector').forEach(select => {
+                select.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.dataset.idx);
+                    userSelections[idx] = e.target.value;
+                    const iconSpan = document.getElementById(`icon${idx}`);
+                    if (iconSpan) iconSpan.innerHTML = '';
+                    messageDiv.style.display = 'none';
+                    saveData();
+                });
+            });
+        }
+
+        if (isCompleted) {
+            for (let i = 0; i < 9; i++) {
+                const iconSpan = document.getElementById(`icon${i}`);
+                if (iconSpan && userSelections[i] === CORRECT_STAGES[i]) {
+                    iconSpan.innerHTML = '✅';
+                } else if (iconSpan && userSelections[i] !== "") {
+                    iconSpan.innerHTML = '❌';
+                }
+            }
+        }
+    }
+
+    function verifyChecklist() {
+        if (isCompleted) return;
+
+        let correct = true;
+        for (let i = 0; i < 9; i++) {
+            if (userSelections[i] !== CORRECT_STAGES[i]) {
+                correct = false;
+                break;
+            }
+        }
+
+        for (let i = 0; i < 9; i++) {
+            const iconSpan = document.getElementById(`icon${i}`);
+            if (iconSpan) {
+                if (userSelections[i] === CORRECT_STAGES[i]) iconSpan.innerHTML = '✅';
+                else if (userSelections[i] !== "") iconSpan.innerHTML = '❌';
+                else iconSpan.innerHTML = '';
+            }
+        }
+
+        const allFilled = userSelections.every(v => v !== "");
+        if (correct && allFilled) {
+            isCompleted = true;
+            saveData();
+            messageDiv.style.display = 'block';
+            messageDiv.innerHTML = '✅ Готово! Можно переходить ко второму шагу.';
+            messageDiv.style.background = '#C3D7FF';
+            document.querySelectorAll('.stage-selector').forEach(sel => sel.disabled = true);
+        } else {
+            messageDiv.style.display = 'block';
+            messageDiv.innerHTML = '❌ Неверно. Проверьте последовательность.';
+            messageDiv.style.background = '#FFC9CC';
+        }
+    }
+
+    checkBtn.addEventListener('click', verifyChecklist);
+    loadData();
+</script>
+</body>
+</html>
