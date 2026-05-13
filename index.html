@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Чек-лист — начало работы</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             background: #FFFFFF;
             display: flex;
@@ -99,9 +95,46 @@
             cursor: pointer;
         }
         .status-icon {
-            font-size: 0.9rem;
-            min-width: 22px;
+            font-size: 1rem;
+            min-width: 28px;
             text-align: center;
+            cursor: pointer;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-flex;
+            cursor: pointer;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            background-color: #1f2f3e;
+            color: #fff;
+            text-align: left;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.7rem;
+            position: absolute;
+            z-index: 100;
+            top: 50%;
+            right: 100%;
+            transform: translateY(-50%);
+            margin-right: 10px;
+            white-space: normal;
+            min-width: 200px;
+            max-width: 280px;
+            word-break: break-word;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
         }
         .btn {
             border: none;
@@ -112,13 +145,6 @@
             cursor: pointer;
             background: #C3D7FF;
             color: #1f2f3e;
-        }
-        .message {
-            margin-top: 12px;
-            padding: 6px 12px;
-            border-radius: 24px;
-            font-size: 0.7rem;
-            display: none;
         }
     </style>
 </head>
@@ -133,13 +159,11 @@
             <div class="section-title">🔍 Этапы консультирования</div>
             <div id="stagesList" class="stages-list"></div>
             <button id="checkBtn" class="btn">✓ Проверить</button>
-            <div id="message" class="message"></div>
         </div>
     </div>
 </div>
 
 <script>
-    // ФИКСИРОВАННЫЕ позиции (обязательный порядок)
     const FIXED_POSITIONS = {
         1: "Согласовать условия работы",
         2: "Заключить договор",
@@ -149,7 +173,6 @@
         9: "Обсудить варианты с клиентом и выбрать лучший"
     };
 
-    // ГИБКИЙ блок (пункты 4,5,6) — могут быть в любом порядке
     const FLEXIBLE_SET = new Set([
         "Запросить уставные документы",
         "Узнать систему налогообложения",
@@ -168,20 +191,17 @@
 
     function shuffleArray(arr) {
         const copy = [...arr];
-        for (let i = copy.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [copy[i], copy[j]] = [copy[j], copy[i]];
-        }
+        for (let i = copy.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [copy[i], copy[j]] = [copy[j], copy[i]]; }
         return copy;
     }
 
     let userSelections = new Array(9).fill("");
     let isCompleted = false;
     let randomOptions = shuffleArray(ALL_OPTIONS);
+    let errorCount = new Array(9).fill(0);
 
     const stagesContainer = document.getElementById('stagesList');
     const checkBtn = document.getElementById('checkBtn');
-    const messageDiv = document.getElementById('message');
 
     function loadData() {
         const saved = localStorage.getItem('checklist_step1');
@@ -191,6 +211,7 @@
                 userSelections = data.userSelections || new Array(9).fill("");
                 isCompleted = data.isCompleted || false;
                 if (data.randomOptions) randomOptions = data.randomOptions;
+                if (data.errorCount) errorCount = data.errorCount;
             } catch(e) {}
         }
         renderStages();
@@ -198,43 +219,38 @@
 
     function saveData() {
         localStorage.setItem('checklist_step1', JSON.stringify({
-            userSelections: userSelections,
-            isCompleted: isCompleted,
-            randomOptions: randomOptions
+            userSelections, isCompleted, randomOptions, errorCount
         }));
         localStorage.setItem('step1_completed', isCompleted ? 'true' : 'false');
         localStorage.setItem('step1_selections', JSON.stringify(userSelections));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'step1_completed' }));
     }
 
-    // Проверка правильности с учётом гибких позиций 4-5-6
     function isChecklistCorrect() {
-        // Проверяем фиксированные позиции (1,2,3,7,8,9)
         for (const [pos, expected] of Object.entries(FIXED_POSITIONS)) {
-            const idx = parseInt(pos) - 1;
-            if (userSelections[idx] !== expected) return false;
+            if (userSelections[parseInt(pos)-1] !== expected) return false;
         }
-
-        // Проверяем, что на позициях 4,5,6 (индексы 3,4,5) присутствуют все три гибких пункта (в любом порядке)
         const flexiblePositions = [userSelections[3], userSelections[4], userSelections[5]];
         const flexibleSetFromSelections = new Set(flexiblePositions);
-        
-        // Должны быть ровно те же 3 элемента, без лишних и без пропусков
         if (flexibleSetFromSelections.size !== 3) return false;
-        
-        for (const item of FLEXIBLE_SET) {
-            if (!flexibleSetFromSelections.has(item)) return false;
-        }
-        
+        for (const item of FLEXIBLE_SET) if (!flexibleSetFromSelections.has(item)) return false;
         return true;
+    }
+
+    function getCorrectForPos(pos) {
+        if (FIXED_POSITIONS[pos]) return FIXED_POSITIONS[pos];
+        if (pos >= 4 && pos <= 6) return "Можно выбрать в любом порядке:\n• Запросить уставные документы\n• Узнать систему налогообложения\n• Узнать о претензиях или проверках от налоговой";
+        return "";
     }
 
     function renderStages() {
         stagesContainer.innerHTML = '';
         for (let i = 0; i < 9; i++) {
+            const pos = i+1;
             const row = document.createElement('div');
             row.className = 'stage-row';
             row.innerHTML = `
-                <div class="stage-num">${i+1}</div>
+                <div class="stage-num">${pos}</div>
                 <div class="stage-select">
                     <select data-idx="${i}" class="stage-selector" ${isCompleted ? 'disabled' : ''}>
                         <option value="">--</option>
@@ -251,104 +267,57 @@
                 select.addEventListener('change', (e) => {
                     const idx = parseInt(e.target.dataset.idx);
                     userSelections[idx] = e.target.value;
+                    errorCount[idx] = 0;
                     const iconSpan = document.getElementById(`icon${idx}`);
                     if (iconSpan) iconSpan.innerHTML = '';
-                    messageDiv.style.display = 'none';
                     saveData();
                 });
             });
         }
-
-        if (isCompleted) {
-            updateIcons();
-        }
+        if (isCompleted) updateIconsAfterCheck(true);
     }
 
-    function updateIcons() {
+    function updateIconsAfterCheck(isFinalCheck = true) {
         for (let i = 0; i < 9; i++) {
             const iconSpan = document.getElementById(`icon${i}`);
-            if (!iconSpan) continue;
-            
-            const pos = i + 1;
+            const pos = i+1;
             const selected = userSelections[i];
+            let isItemCorrect = false;
+            if (FIXED_POSITIONS[pos]) isItemCorrect = (selected === FIXED_POSITIONS[pos]);
+            else if (pos >= 4 && pos <= 6) isItemCorrect = (selected !== "" && FLEXIBLE_SET.has(selected));
             
-            if (FIXED_POSITIONS[pos]) {
-                if (selected === FIXED_POSITIONS[pos]) {
-                    iconSpan.innerHTML = '✅';
-                } else if (selected !== "") {
+            if (isItemCorrect && selected !== "") {
+                iconSpan.innerHTML = '✅';
+                errorCount[i] = 0;
+            } else if (selected !== "") {
+                if (isFinalCheck) errorCount[i]++;
+                const correctAnswer = getCorrectForPos(pos);
+                if (errorCount[i] === 1) {
                     iconSpan.innerHTML = '❌';
                 } else {
-                    iconSpan.innerHTML = '';
+                    const wrapper = document.createElement('span');
+                    wrapper.className = 'tooltip';
+                    wrapper.innerHTML = `💡<span class="tooltip-text">Правильно: ${correctAnswer}</span>`;
+                    wrapper.id = `icon${i}`;
+                    wrapper.className = 'status-icon tooltip';
+                    iconSpan.parentNode.replaceChild(wrapper, iconSpan);
                 }
-            }
-            else if (pos >= 4 && pos <= 6) {
-                if (selected !== "" && FLEXIBLE_SET.has(selected)) {
-                    const flexiblePositions = [userSelections[3], userSelections[4], userSelections[5]];
-                    const allPresent = flexiblePositions.every(v => v !== "" && FLEXIBLE_SET.has(v));
-                    if (allPresent) {
-                        iconSpan.innerHTML = '✅';
-                    } else if (selected !== "") {
-                        iconSpan.innerHTML = '❌';
-                    } else {
-                        iconSpan.innerHTML = '';
-                    }
-                } else if (selected !== "") {
-                    iconSpan.innerHTML = '❌';
-                } else {
-                    iconSpan.innerHTML = '';
-                }
+            } else {
+                iconSpan.innerHTML = '';
+                errorCount[i] = 0;
             }
         }
     }
 
     function verifyChecklist() {
         if (isCompleted) return;
-
         const correct = isChecklistCorrect();
         const allFilled = userSelections.every(v => v !== "");
-
-        for (let i = 0; i < 9; i++) {
-            const iconSpan = document.getElementById(`icon${i}`);
-            if (!iconSpan) continue;
-            
-            const pos = i + 1;
-            const selected = userSelections[i];
-            
-            if (FIXED_POSITIONS[pos]) {
-                if (selected === FIXED_POSITIONS[pos]) iconSpan.innerHTML = '✅';
-                else if (selected !== "") iconSpan.innerHTML = '❌';
-                else iconSpan.innerHTML = '';
-            }
-            else if (pos >= 4 && pos <= 6) {
-                if (selected !== "" && FLEXIBLE_SET.has(selected)) {
-                    const flexibleValues = [userSelections[3], userSelections[4], userSelections[5]].filter(v => v !== "");
-                    if (flexibleValues.length === 3 && flexibleValues.every(v => FLEXIBLE_SET.has(v))) {
-                        iconSpan.innerHTML = '✅';
-                    } else {
-                        iconSpan.innerHTML = '❌';
-                    }
-                } else if (selected !== "") {
-                    iconSpan.innerHTML = '❌';
-                } else {
-                    iconSpan.innerHTML = '';
-                }
-            }
-        }
-
+        updateIconsAfterCheck(true);
         if (correct && allFilled) {
             isCompleted = true;
             saveData();
-            messageDiv.style.display = 'block';
-            messageDiv.innerHTML = '✅ Готово! Все этапы выбраны верно.';
-            messageDiv.style.background = '#C3D7FF';
             document.querySelectorAll('.stage-selector').forEach(sel => sel.disabled = true);
-        } else {
-            messageDiv.style.display = 'block';
-            let errorMsg = '❌ Неверно. ';
-            if (!allFilled) errorMsg += 'Заполните все этапы.';
-            else errorMsg += 'Проверьте последовательность этапов.';
-            messageDiv.innerHTML = errorMsg;
-            messageDiv.style.background = '#FFC9CC';
         }
     }
 
